@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cek Nilai Pretest Praktikum</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f4f6f9;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    select, input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #007BFF;
+      border: none;
+      color: white;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #hasil {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #007BFF;
+      color: white;
+    }
+    .merah {
+      background: #f8d7da;
+      color: #721c24;
+      font-weight: bold;
+    }
+    .warning {
+      margin-top: 15px;
+      padding: 10px;
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+      border-radius: 4px;
+    }
+    .loading {
+      text-align: center;
+      color: #007BFF;
+    }
+    .error {
+      color: #dc3545;
+      background: #f8d7da;
+      padding: 10px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cek Nilai Pretest Praktikum PK</h1>
+
+  <label for="regu">Pilih Regu:</label>
+  <select id="regu">
+    <option value="REGU A">REGU A</option>
+    <option value="REGU B">REGU B</option>
+  </select>
+
+  <label for="niu">Masukkan NIU:</label>
+  <input type="text" id="niu" placeholder="Contoh: 474373">
+
+  <button onclick="cekNilai()">Cek Nilai</button>
+
+  <div id="hasil">Masukkan NIU untuk melihat nilai pretest.</div>
+
+  <script>
+    async function cekNilai() {
+      const niu = document.getElementById("niu").value.trim();
+      const regu = document.getElementById("regu").value;
+      const hasilDiv = document.getElementById("hasil");
+
+      if (!niu) {
+        hasilDiv.innerHTML = '<div class="error">Masukkan NIU terlebih dahulu!</div>';
+        return;
+      }
+
+      // Tampilkan loading
+      hasilDiv.innerHTML = '<div class="loading">Memuat data...</div>';
+
+      try {
+        // Panggil endpoint backend
+        const response = await fetch(`/cek-nilai?regu=${encodeURIComponent(regu)}&niu=${encodeURIComponent(niu)}`);
+        const data = await response.json();
+
+        if (data.error) {
+          hasilDiv.innerHTML = `<div class="error">${data.error}</div>`;
+          return;
+        }
+
+        // Pastikan data.nilai adalah array sebelum diproses
+        if (!Array.isArray(data.nilai)) {
+          throw new Error("Format data tidak valid");
+        }
+
+        const nama = data.nama || "(Tanpa Nama)";
+        const nilaiPretest = data.nilai.map(v => {
+          const num = parseInt(v);
+          return isNaN(num) ? 0 : num;
+        });
+
+        // Jika tidak ada nilai pretest
+        if (nilaiPretest.length === 0) {
+          hasilDiv.innerHTML = `
+            <b>Regu:</b> ${data.regu}<br>
+            <b>Nama:</b> ${nama}<br>
+            <b>NIU:</b> ${data.niu}<br>
+            <p>Belum ada nilai pretest yang tercatat.</p>
+          `;
+          return;
+        }
+
+        // Buat tabel nilai
+        let table = "<table><tr>";
+        nilaiPretest.forEach((_, i) => {
+          table += `<th>Acara ${i+1}</th>`;
+        });
+        table += "</tr><tr>";
+        nilaiPretest.forEach(v => {
+          if (v < 50) {
+            table += `<td class="merah">${v}</td>`;
+          } else {
+            table += `<td>${v}</td>`;
+          }
+        });
+        table += "</tr></table>";
+
+        // Cek 3x berturut-turut < 50
+        let consecutiveFails = 0;
+        let maxConsecutive = 0;
+        for (let v of nilaiPretest) {
+          if (v < 50) {
+            consecutiveFails++;
+            if (consecutiveFails > maxConsecutive) {
+              maxConsecutive = consecutiveFails;
+            }
+          } else {
+            consecutiveFails = 0;
+          }
+        }
+
+        let warning = "";
+        if (maxConsecutive >= 3) {
+          warning = `<div class="warning">⚠️ Nilai pretest 3 kali berturut-turut di bawah 50, tidak diperbolehkan masuk pertemuan selanjutnya.</div>`;
+        }
+
+        hasilDiv.innerHTML = `
+          <b>Regu:</b> ${data.regu}<br>
+          <b>Nama:</b> ${nama}<br>
+          <b>NIU:</b> ${data.niu}<br>
+          ${table}
+          ${warning}
+        `;
+      } catch (err) {
+        console.error("Error detail:", err);
+        hasilDiv.innerHTML = '<div class="error">Terjadi kesalahan saat mengambil data. Silakan coba lagi.</div>';
+      }
+    }
+
+    // Tambahkan event listener untuk tombol Enter
+    document.getElementById('niu').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        cekNilai();
+      }
+    });
+  </script>
+</body>
+</html>
