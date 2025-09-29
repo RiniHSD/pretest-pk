@@ -24,7 +24,7 @@ app.get("/cek-nilai", async (req, res) => {
   }
 
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.SPREADSHEET_ID}/values/${regu}!B13:M?key=${process.env.API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.SPREADSHEET_ID}/values/${regu}!B13:O?key=${process.env.API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
 
